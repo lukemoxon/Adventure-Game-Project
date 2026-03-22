@@ -1,11 +1,15 @@
-# gamefunctions.py
 """
 gamefunctions.py
-Author: Your Name
-Project: Adventure Functions
 
-Contains functions for purchasing items, generating monsters,
-printing a welcome message, and printing a formatted shop menu.
+Provides utility functions for a simple adventure game.
+Includes functionality for purchasing items, generating
+random monsters, printing a welcome message, and displaying
+a formatted shop menu.
+
+This module is designed to be imported into another file
+(e.g., game.py) and reused.
+
+Author: Luke Moxon
 """
 
 import random
@@ -21,11 +25,12 @@ def purchase_item(itemPrice, startingMoney, quantityToPurchase=1):
     Parameters:
         itemPrice (int): Price of one item.
         startingMoney (int): Amount of money available.
-        quantityToPurchase (int, optional): Number of items requested (default is 1).
+        quantityToPurchase (int, optional): Number of items
+            requested (default is 1).
 
     Returns:
         tuple:
-            quantity_purchased (int): Number of items actually purchased.
+            quantity_purchased (int): Number of items bought.
             remaining_money (int): Money left after purchase.
     """
     max_affordable = startingMoney // itemPrice
@@ -36,9 +41,9 @@ def purchase_item(itemPrice, startingMoney, quantityToPurchase=1):
 
 
 # -------------------------------------------------
-# Function: new_random_monster
+# Function: random_monster
 # -------------------------------------------------
-def new_random_monster():
+def random_monster():
     """
     Generates a random monster with randomized stats.
 
@@ -56,38 +61,36 @@ def new_random_monster():
     monsters = [
         {
             "name": "Goblin",
-            "description": "A sneaky goblin rushes at you with a dagger.",
+            "description": "A sneaky goblin rushes at you.",
             "health_range": (5, 15),
             "power_range": (2, 6),
             "money_range": (10, 50)
         },
         {
             "name": "Vulture",
-            "description": "A vulture guards treasure from fallen adventurers.",
+            "description": "A vulture guards treasure.",
             "health_range": (1, 3),
             "power_range": (1, 2),
             "money_range": (100, 1500)
         },
         {
             "name": "Troll",
-            "description": "A massive troll blocks your path with a heavy club.",
+            "description": "A massive troll blocks your path.",
             "health_range": (20, 35),
             "power_range": (5, 10),
             "money_range": (50, 200)
         }
     ]
 
-    monster_template = random.choice(monsters)
+    template = random.choice(monsters)
 
-    monster = {
-        "name": monster_template["name"],
-        "description": monster_template["description"],
-        "health": random.randint(*monster_template["health_range"]),
-        "power": random.randint(*monster_template["power_range"]),
-        "money": random.randint(*monster_template["money_range"])
+    return {
+        "name": template["name"],
+        "description": template["description"],
+        "health": random.randint(*template["health_range"]),
+        "power": random.randint(*template["power_range"]),
+        "money": random.randint(*template["money_range"])
     }
-
-    return monster
 
 
 # -------------------------------------------------
@@ -98,8 +101,8 @@ def print_welcome(name, width):
     Prints a centered welcome message.
 
     Parameters:
-        name (str): The name of the person to welcome.
-        width (int): Total width of the printed line.
+        name (str): The player's name.
+        width (int): Width of the printed line.
 
     Returns:
         None
@@ -113,7 +116,7 @@ def print_welcome(name, width):
 # -------------------------------------------------
 def print_shop_menu(item1Name, item1Price, item2Name, item2Price):
     """
-    Prints a formatted shop menu displaying two items and their prices.
+    Prints a formatted shop menu displaying two items.
 
     Parameters:
         item1Name (str): Name of first item.
@@ -124,41 +127,39 @@ def print_shop_menu(item1Name, item1Price, item2Name, item2Price):
     Returns:
         None
     """
-    # Format prices to 2 decimal places with dollar sign
-    formatted_price1 = f"${item1Price:.2f}"
-    formatted_price2 = f"${item2Price:.2f}"
+    p1 = f"${item1Price:.2f}"
+    p2 = f"${item2Price:.2f}"
 
-    # Border
     print("/----------------------\\")
-    print(f"| {item1Name:<12}{formatted_price1:>8} |")
-    print(f"| {item2Name:<12}{formatted_price2:>8} |")
+    print(f"| {item1Name:<12}{p1:>8} |")
+    print(f"| {item2Name:<12}{p2:>8} |")
     print("\\----------------------/")
 
 
-# =================================================
-# TEST CALLS (Automated - No input used)
-# =================================================
-if __name__ == "__main__":
+# -------------------------------------------------
+# Test Function
+# -------------------------------------------------
+def test_functions():
+    """Run basic tests for all functions."""
 
     print("Testing purchase_item()")
     print(purchase_item(123, 1000, 3))
     print(purchase_item(123, 201, 3))
-    print(purchase_item(341, 2112))  # default quantity
+    print(purchase_item(341, 2112))
 
-
-    print("\nTesting new_random_monster()")
+    print("\nTesting random_monster()")
     for _ in range(3):
-        monster = new_random_monster()
-        print(monster)
-
+        print(random_monster())
 
     print("\nTesting print_welcome()")
     print_welcome("Jeff", 20)
     print_welcome("Audrey", 30)
     print_welcome("Luke", 25)
 
-
     print("\nTesting print_shop_menu()")
-    print_shop_menu("Apple", 31, "Pear", 1.234)
-    print_shop_menu("Egg", 0.23, "Bag of Oats", 12.34)
+    print_shop_menu("Apple", 31, "Pear", 1.23)
     print_shop_menu("Sword", 199.9, "Shield", 85)
+
+
+if __name__ == "__main__":
+    test_functions()
