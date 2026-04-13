@@ -1,17 +1,41 @@
 import random
+import json
 
+# ---------------------------
 def print_welcome(name):
-    print(f"\nWelcome to the adventure, {name}!")
+    """Print welcome message."""
+    print(f"\nWelcome, {name}!")
 
 def random_monster():
+    """Return a random monster."""
     return random.choice(["Goblin", "Orc", "Troll"])
 
 # ---------------------------
-# SHOP
+def save_game(state):
+    """Save game state to JSON file."""
+    filename = input("Enter save file name: ")
+    with open(filename, "w") as file:
+        json.dump(state, file)
+    print("Game saved!")
+
+def load_game():
+    """Load game state from JSON file."""
+    filename = input("Enter save file name: ")
+    try:
+        with open(filename, "r") as file:
+            state = json.load(file)
+        print("Game loaded!")
+        return state
+    except:
+        print("Error loading file.")
+        return None
+
+# ---------------------------
 def buy_item(state):
+    """Buy items and add to inventory."""
     print("\nShop:")
     print("1) Sword (50 gold)")
-    print("2) Magic Potion (30 gold)")
+    print("2) Potion (30 gold)")
 
     choice = input("Choose item: ")
 
@@ -35,12 +59,12 @@ def buy_item(state):
         print("You bought a potion!")
 
     else:
-        print("Invalid or not enough gold.")
+        print("Invalid choice or not enough gold.")
 
 # ---------------------------
-# EQUIP
 def equip_weapon(state):
-    weapons = [item for item in state["inventory"] if item["type"] == "weapon"]
+    """Equip a weapon from inventory."""
+    weapons = [i for i in state["inventory"] if i["type"] == "weapon"]
 
     if not weapons:
         print("No weapons available.")
@@ -59,8 +83,8 @@ def equip_weapon(state):
         print("Weapon equipped!")
 
 # ---------------------------
-# FIGHT
 def fight(state):
+    """Combat loop."""
     monster = random_monster()
     monster_hp = 15
 
@@ -69,7 +93,7 @@ def fight(state):
     while state["hp"] > 0 and monster_hp > 0:
         print(f"Your HP: {state['hp']} | Monster HP: {monster_hp}")
 
-        # Check for potion
+        # Special item check
         for item in state["inventory"]:
             if item["type"] == "special":
                 use = input("Use potion to win instantly? (y/n): ")
@@ -84,7 +108,7 @@ def fight(state):
         if action == "1":
             damage = 3
 
-            # Check equipped weapon
+            # Weapon bonus
             for item in state["inventory"]:
                 if item.get("equipped"):
                     damage += item["damage"]
@@ -109,17 +133,26 @@ def fight(state):
         state["gold"] += 10
 
 # ---------------------------
-# MAIN LOOP
 def main():
-    name = input("Enter your name: ")
-    print_welcome(name)
+    """Main game loop."""
 
-    state = {
-        "name": name,
-        "hp": 30,
-        "gold": 100,
-        "inventory": []
-    }
+    print("1) New Game")
+    print("2) Load Game")
+    start = input("Choose: ")
+
+    if start == "2":
+        state = load_game()
+        if state is None:
+            return
+    else:
+        name = input("Enter your name: ")
+        print_welcome(name)
+        state = {
+            "name": name,
+            "hp": 30,
+            "gold": 100,
+            "inventory": []
+        }
 
     while True:
         print(f"\nHP: {state['hp']} | Gold: {state['gold']}")
@@ -127,7 +160,7 @@ def main():
         print("2) Sleep (restore HP for 5 gold)")
         print("3) Shop")
         print("4) Equip Weapon")
-        print("5) Quit")
+        print("5) Save and Quit")
 
         choice = input("Choose: ")
 
@@ -145,6 +178,7 @@ def main():
         elif choice == "4":
             equip_weapon(state)
         elif choice == "5":
+            save_game(state)
             print("Goodbye!")
             break
         else:
