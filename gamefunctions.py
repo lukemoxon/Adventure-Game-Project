@@ -43,18 +43,10 @@ def purchase_item(itemPrice, startingMoney, quantityToPurchase=1):
 # -------------------------------------------------
 def random_monster():
     """
-    Generates a random monster with randomized stats.
-
-    Parameters:
-        None
+    Generates a random monster dict with randomized stats.
 
     Returns:
-        dict: A dictionary containing:
-            name (str)
-            description (str)
-            health (int)
-            power (int)
-            money (int)
+        dict: name, description, health, power, money
     """
     monsters = [
         {
@@ -94,16 +86,13 @@ def random_monster():
 # -------------------------------------------------
 # Function: print_welcome
 # -------------------------------------------------
-def print_welcome(name, width):
+def print_welcome(name, width=30):
     """
     Prints a centered welcome message.
 
     Parameters:
         name (str): The player's name.
         width (int): Width of the printed line.
-
-    Returns:
-        None
     """
     message = f"Hello, {name}!"
     print(message.center(width))
@@ -115,15 +104,6 @@ def print_welcome(name, width):
 def print_shop_menu(item1Name, item1Price, item2Name, item2Price):
     """
     Prints a formatted shop menu displaying two items.
-
-    Parameters:
-        item1Name (str): Name of first item.
-        item1Price (float): Price of first item.
-        item2Name (str): Name of second item.
-        item2Price (float): Price of second item.
-
-    Returns:
-        None
     """
     p1 = f"${item1Price:.2f}"
     p2 = f"${item2Price:.2f}"
@@ -141,22 +121,15 @@ def new_map_state():
     """
     Creates and returns a fresh map state dictionary.
 
-    The map is a 10x10 grid.
-    Town is at (0, 0) (upper-left).
-    Monster starts at a random location that is not the town.
+    The map is a 10x10 grid. Town is at (0, 0).
+    Monsters are stored separately in state["monsters"].
 
     Returns:
-        dict: map_state with keys:
-            player_pos (list): [x, y] player position.
-            town_pos (tuple): (x, y) of the town square.
-            monster_pos (list): [x, y] of the monster square.
+        dict: map_state with player_pos and town_pos.
     """
-    town_pos = (0, 0)
-    monster_pos = _random_unoccupied([town_pos], town_pos)
     return {
         "player_pos": [0, 0],
-        "town_pos": town_pos,
-        "monster_pos": monster_pos
+        "town_pos": [0, 0],
     }
 
 
@@ -165,15 +138,7 @@ def new_map_state():
 # -------------------------------------------------
 def _random_unoccupied(occupied, town_pos):
     """
-    Returns a random [x, y] position on the 10x10 grid
-    that is not in the occupied list.
-
-    Parameters:
-        occupied (list): List of (x, y) tuples already taken.
-        town_pos (tuple): Town position to also exclude.
-
-    Returns:
-        list: [x, y]
+    Returns a random [x, y] on the 10x10 grid not in occupied.
     """
     while True:
         pos = [random.randint(0, 9), random.randint(0, 9)]
@@ -186,18 +151,14 @@ def _random_unoccupied(occupied, town_pos):
 # -------------------------------------------------
 def move_player(map_state, direction):
     """
-    Moves the player one grid space in the given direction,
-    enforcing 10x10 grid boundaries.
+    Moves the player one grid space in the given direction.
 
     Parameters:
         map_state (dict): Current map state (modified in place).
         direction (str): One of 'up', 'down', 'left', 'right'.
 
     Returns:
-        str: One of:
-            "moved"             - normal movement
-            "returned_to_town"  - player stepped onto town square
-            "monster_encounter" - player stepped onto monster square
+        str: "moved", "returned_to_town"
     """
     x, y = map_state["player_pos"]
 
@@ -210,13 +171,10 @@ def move_player(map_state, direction):
     elif direction == "right":
         x = min(9, x + 1)
 
-    # Only update if actually moved away from town first
     was_at_town = (map_state["player_pos"] == list(map_state["town_pos"]))
     map_state["player_pos"] = [x, y]
 
-    if [x, y] == list(map_state["monster_pos"]):
-        return "monster_encounter"
-    elif [x, y] == list(map_state["town_pos"]) and not was_at_town:
+    if [x, y] == list(map_state["town_pos"]) and not was_at_town:
         return "returned_to_town"
     else:
         return "moved"
@@ -225,29 +183,32 @@ def move_player(map_state, direction):
 # -------------------------------------------------
 # Function: draw_map
 # -------------------------------------------------
-def draw_map(map_state):
+def draw_map(state):
     """
     Prints the current 10x10 text map to the terminal.
+    Reads monsters from state["monsters"] (list of WanderingMonster objects).
 
     Symbols:
         P = player
         T = town square
-        M = monster square
+        M = monster
         . = empty square
 
     Parameters:
-        map_state (dict): Current map state.
-
-    Returns:
-        None
+        state (dict): Full game state including map_state and monsters.
     """
     os.system('cls' if os.name == 'nt' else 'clear')
     print("\n  === WORLD MAP ===")
     print("  Controls: w=up  s=down  a=left  d=right  q=quit to town\n")
 
+    map_state = state["map_state"]
     player = map_state["player_pos"]
     town = list(map_state["town_pos"])
-    monster = map_state["monster_pos"]
+
+    # Build set of monster positions for quick lookup
+    monster_positions = set()
+    for m in state.get("monsters", []):
+        monster_positions.add((m.x, m.y))
 
     for row in range(10):
         line = "  "
@@ -257,7 +218,7 @@ def draw_map(map_state):
                 line += "P"
             elif pos == town:
                 line += "T"
-            elif pos == monster:
+            elif (col, row) in monster_positions:
                 line += "M"
             else:
                 line += "."
@@ -268,21 +229,24 @@ def draw_map(map_state):
 # -------------------------------------------------
 # Function: run_map_interface
 # -------------------------------------------------
-def run_map_interface(map_state):
+def run_map_interface(state):
     """
     Runs the text-based map interface loop.
 
-    The player navigates using w/a/s/d keys.
-    The loop ends when the player returns to town,
-    encounters a monster, or presses 'q'.
+    Each keypress:
+      1. Moves the player
+      2. Checks for monster collision -> returns "monster" + which monster
+      3. Moves all monsters
+      4. Redraws map
 
     Parameters:
-        map_state (dict): Current map state (modified in place).
+        state (dict): Full game state (modified in place).
 
     Returns:
-        str: "town" if player returned to town or quit,
-             "monster" if player encountered a monster.
+        tuple: ("town", None) or ("monster", WanderingMonster)
     """
+    from WanderingMonster import WanderingMonster
+
     direction_map = {
         "w": "up",
         "s": "down",
@@ -290,32 +254,59 @@ def run_map_interface(map_state):
         "d": "right"
     }
 
+    map_state = state["map_state"]
+
     while True:
-        draw_map(map_state)
+        draw_map(state)
 
         key = input("Move: ").strip().lower()
 
         if key == "q":
-            print("Returning to town...")
             map_state["player_pos"] = list(map_state["town_pos"])
-            return "town"
+            return "town", None
 
         if key not in direction_map:
             continue
 
+        # 1. Move player
         result = move_player(map_state, direction_map[key])
 
         if result == "returned_to_town":
-            draw_map(map_state)
+            draw_map(state)
             print("You returned to town!")
             input("Press Enter to continue...")
-            return "town"
+            return "town", None
 
-        elif result == "monster_encounter":
-            draw_map(map_state)
-            print("A monster is here!")
+        # 2. Check if player landed on a monster (BEFORE monsters move)
+        px, py = map_state["player_pos"]
+        encountered = None
+        for m in state["monsters"]:
+            if m.x == px and m.y == py:
+                encountered = m
+                break
+
+        if encountered is not None:
+            draw_map(state)
+            print(f"A {encountered.monster_type} blocks your path!")
             input("Press Enter to fight...")
-            return "monster"
+            return "monster", encountered
+
+        # 3. Move all monsters
+        town_pos = tuple(map_state["town_pos"])
+        player_pos = tuple(map_state["player_pos"])
+        for i, m in enumerate(state["monsters"]):
+            # Other monster positions (exclude self)
+            other_monsters = [(om.x, om.y) for j, om in enumerate(state["monsters"]) if j != i]
+            forbidden = [town_pos, player_pos]
+            m.move(other_monsters, forbidden)
+
+        # 4. Check again if any monster walked into the player
+        for m in state["monsters"]:
+            if m.x == px and m.y == py:
+                draw_map(state)
+                print(f"A {m.monster_type} found you!")
+                input("Press Enter to fight...")
+                return "monster", m
 
 
 # -------------------------------------------------
@@ -349,9 +340,6 @@ def test_functions():
     print("\nTesting move_player()")
     print(move_player(ms, "down"))
     print(ms["player_pos"])
-
-    print("\nTesting draw_map()")
-    draw_map(ms)
 
 
 if __name__ == "__main__":

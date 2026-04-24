@@ -1,6 +1,7 @@
 import random
 import json
 import gamefunctions
+from WanderingMonster import WanderingMonster
 
 
 # ---------------------------
@@ -11,23 +12,33 @@ def print_welcome(name):
 
 # ---------------------------
 def save_game(state):
-    """Save game state to JSON file."""
+    """Save game state to JSON file. Converts monsters to dicts."""
     filename = input("Enter save file name: ")
+    save_data = {
+        "name": state["name"],
+        "hp": state["hp"],
+        "gold": state["gold"],
+        "inventory": state["inventory"],
+        "map_state": state["map_state"],
+        "monsters": [m.to_dict() for m in state["monsters"]]
+    }
     with open(filename, "w") as file:
-        json.dump(state, file)
+        json.dump(save_data, file)
     print("Game saved!")
 
 
 def load_game():
-    """Load game state from JSON file."""
+    """Load game state from JSON file. Reconstructs WanderingMonster objects."""
     filename = input("Enter save file name: ")
     try:
         with open(filename, "r") as file:
-            state = json.load(file)
+            data = json.load(file)
+        # Reconstruct monster objects from dicts
+        data["monsters"] = [WanderingMonster.from_dict(m) for m in data["monsters"]]
         print("Game loaded!")
-        return state
-    except:
-        print("Error loading file.")
+        return data
+    except Exception as e:
+        print(f"Error loading file: {e}")
         return None
 
 
@@ -86,38 +97,34 @@ def equip_weapon(state):
 
 
 # ---------------------------
-def fight(state, monster=None):
+def fight(state, wandering_monster):
     """
-    Combat loop.
+    Combat loop against a WanderingMonster.
 
     Parameters:
         state (dict): Game state.
-        monster (dict, optional): A monster dict from gamefunctions.random_monster().
-                                  If None, generates a new one.
+        wandering_monster (WanderingMonster): The monster being fought.
 
     Returns:
         str: "won", "lost", or "fled"
     """
-    if monster is None:
-        monster = gamefunctions.random_monster()
+    monster_hp = wandering_monster.hp
+    monster_name = wandering_monster.monster_type
 
-    monster_hp = monster["health"]
-    monster_name = monster["name"]
-
-    print(f"\n{monster['description']}")
-    print(f"A {monster_name} appears! (HP: {monster_hp}, Power: {monster['power']})")
+    print(f"\n{wandering_monster.description}")
+    print(f"A {monster_name} appears! (HP: {monster_hp}, Power: {wandering_monster.power})")
 
     while state["hp"] > 0 and monster_hp > 0:
         print(f"\nYour HP: {state['hp']} | {monster_name} HP: {monster_hp}")
 
         # Special item check
-        for item in state["inventory"]:
+        for item in list(state["inventory"]):
             if item["type"] == "special":
                 use = input("Use potion to win instantly? (y/n): ")
                 if use == "y":
                     print("Monster defeated instantly!")
                     state["inventory"].remove(item)
-                    state["gold"] += monster["money"]
+                    state["gold"] += wandering_monster.money
                     return "won"
 
         action = input("1) Attack  2) Run: ")
@@ -125,7 +132,6 @@ def fight(state, monster=None):
         if action == "1":
             damage = 3
 
-            # Weapon bonus
             for item in list(state["inventory"]):
                 if item.get("equipped"):
                     damage += item["damage"]
@@ -136,8 +142,8 @@ def fight(state, monster=None):
                         state["inventory"].remove(item)
 
             monster_hp -= damage
-            state["hp"] -= monster["power"]
-            print(f"You dealt {damage} damage! Monster dealt {monster['power']} damage!")
+            state["hp"] -= wandering_monster.power
+            print(f"You dealt {damage} damage! Monster dealt {wandering_monster.power} damage!")
 
         elif action == "2":
             print("You ran away!")
@@ -147,56 +153,74 @@ def fight(state, monster=None):
         print("You lost...")
         return "lost"
     else:
-        earned = monster["money"]
+        earned = wandering_monster.money
         print(f"You won! Earned {earned} gold.")
         state["gold"] += earned
         return "won"
 
 
 # ---------------------------
+def _spawn_initial_monster(state):
+    """Spawn one monster avoiding town and player."""
+    map_state = state["map_state"]
+    forbidden = [
+        tuple(map_state["town_pos"]),
+        tuple(map_state["player_pos"])
+    ]
+    occupied = [(m.x, m.y) for m in state["monsters"]]
+    m = WanderingMonster.random_spawn(occupied, forbidden)
+    state["monsters"].append(m)
+
+
+def _ensure_monsters(state):
+    """If no monsters remain, spawn two new ones."""
+    if len(state["monsters"]) == 0:
+        print("The map is clear! New monsters appear...")
+        for _ in range(2):
+            _spawn_initial_monster(state)
+
+
+# ---------------------------
 def explore(state):
     """
-    Run the map interface. Handle monster encounters and
-    town returns. After combat, return to map at same spot
-    with a new monster in a random unoccupied location.
+    Run the map interface with wandering monsters.
     """
-    # Initialize map state if not present
-    if "map_state" not in state:
-        state["map_state"] = gamefunctions.new_map_state()
-
     map_state = state["map_state"]
 
     # Place player at town when entering explore
     map_state["player_pos"] = list(map_state["town_pos"])
 
+    # Ensure at least one monster exists
+    _ensure_monsters(state)
+
     while True:
-        result = gamefunctions.run_map_interface(map_state)
+        result, encountered_monster = gamefunctions.run_map_interface(state)
 
         if result == "town":
             print("You're back in town.")
             return
 
-        elif result == "monster":
-            monster = gamefunctions.random_monster()
-            outcome = fight(state, monster)
+        elif result == "monster" and encountered_monster is not None:
+            outcome = fight(state, encountered_monster)
 
-            if outcome == "lost":
-                # Respawn player in town, reset map
+            if outcome == "won":
+                # Remove defeated monster from state
+                state["monsters"] = [
+                    m for m in state["monsters"]
+                    if not (m.x == encountered_monster.x and m.y == encountered_monster.y)
+                ]
+                print("The monster has been defeated.")
+                _ensure_monsters(state)
+                input("Press Enter to return to map...")
+
+            elif outcome == "fled":
+                input("Press Enter to return to map...")
+
+            elif outcome == "lost":
                 print("You wake up back in town...")
                 state["hp"] = 30
-                state["map_state"] = gamefunctions.new_map_state()
+                map_state["player_pos"] = list(map_state["town_pos"])
                 return
-
-            else:
-                # Stay at monster location, place new monster elsewhere
-                current_pos = map_state["player_pos"]
-                occupied = [tuple(current_pos), tuple(map_state["town_pos"])]
-                map_state["monster_pos"] = gamefunctions._random_unoccupied(
-                    occupied, map_state["town_pos"]
-                )
-                print("The area is now safe. You may continue exploring.")
-                input("Press Enter to return to map...")
-                # Continue the while loop — player stays on map
 
 
 # ---------------------------
@@ -214,13 +238,17 @@ def main():
     else:
         name = input("Enter your name: ")
         print_welcome(name)
+        map_state = gamefunctions.new_map_state()
         state = {
             "name": name,
             "hp": 30,
             "gold": 100,
             "inventory": [],
-            "map_state": gamefunctions.new_map_state()
+            "map_state": map_state,
+            "monsters": []
         }
+        # Spawn one starting monster
+        _spawn_initial_monster(state)
 
     while True:
         if state["hp"] <= 0:
