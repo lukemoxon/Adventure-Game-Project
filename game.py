@@ -2,6 +2,7 @@ import random
 import json
 import gamefunctions
 from WanderingMonster import WanderingMonster
+from combat import run_combat
 
 
 # ---------------------------
@@ -33,7 +34,6 @@ def load_game():
     try:
         with open(filename, "r") as file:
             data = json.load(file)
-        # Reconstruct monster objects from dicts
         data["monsters"] = [WanderingMonster.from_dict(m) for m in data["monsters"]]
         print("Game loaded!")
         return data
@@ -97,69 +97,6 @@ def equip_weapon(state):
 
 
 # ---------------------------
-def fight(state, wandering_monster):
-    """
-    Combat loop against a WanderingMonster.
-
-    Parameters:
-        state (dict): Game state.
-        wandering_monster (WanderingMonster): The monster being fought.
-
-    Returns:
-        str: "won", "lost", or "fled"
-    """
-    monster_hp = wandering_monster.hp
-    monster_name = wandering_monster.monster_type
-
-    print(f"\n{wandering_monster.description}")
-    print(f"A {monster_name} appears! (HP: {monster_hp}, Power: {wandering_monster.power})")
-
-    while state["hp"] > 0 and monster_hp > 0:
-        print(f"\nYour HP: {state['hp']} | {monster_name} HP: {monster_hp}")
-
-        # Special item check
-        for item in list(state["inventory"]):
-            if item["type"] == "special":
-                use = input("Use potion to win instantly? (y/n): ")
-                if use == "y":
-                    print("Monster defeated instantly!")
-                    state["inventory"].remove(item)
-                    state["gold"] += wandering_monster.money
-                    return "won"
-
-        action = input("1) Attack  2) Run: ")
-
-        if action == "1":
-            damage = 3
-
-            for item in list(state["inventory"]):
-                if item.get("equipped"):
-                    damage += item["damage"]
-                    item["durability"] -= 1
-                    print("Weapon used!")
-                    if item["durability"] <= 0:
-                        print("Your weapon broke!")
-                        state["inventory"].remove(item)
-
-            monster_hp -= damage
-            state["hp"] -= wandering_monster.power
-            print(f"You dealt {damage} damage! Monster dealt {wandering_monster.power} damage!")
-
-        elif action == "2":
-            print("You ran away!")
-            return "fled"
-
-    if state["hp"] <= 0:
-        print("You lost...")
-        return "lost"
-    else:
-        earned = wandering_monster.money
-        print(f"You won! Earned {earned} gold.")
-        state["gold"] += earned
-        return "won"
-
-
-# ---------------------------
 def _spawn_initial_monster(state):
     """Spawn one monster avoiding town and player."""
     map_state = state["map_state"]
@@ -201,10 +138,9 @@ def explore(state):
             return
 
         elif result == "monster" and encountered_monster is not None:
-            outcome = fight(state, encountered_monster)
+            outcome = run_combat(state, encountered_monster)
 
             if outcome == "won":
-                # Remove defeated monster from state
                 state["monsters"] = [
                     m for m in state["monsters"]
                     if not (m.x == encountered_monster.x and m.y == encountered_monster.y)
@@ -247,7 +183,6 @@ def main():
             "map_state": map_state,
             "monsters": []
         }
-        # Spawn one starting monster
         _spawn_initial_monster(state)
 
     while True:
